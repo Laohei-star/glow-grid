@@ -750,7 +750,7 @@ infoModal.addEventListener('click', (e) => {
 animate();
 </script>
 
-<!-- hide-ui-v1 -->
+<!-- hide-ui-v2 -->
 <style>
 body.hide-all-ui .control-panel,
 body.hide-all-ui .toggle-btn,
@@ -766,6 +766,18 @@ body.hide-all-ui .info-modal {
   display: none;
 }
 body.hide-all-ui #hide-ui-hotzone { display: block; }
+#hide-ui-label {
+  position: fixed; bottom: 8px; left: 12px;
+  color: #888; font-size: 11px;
+  font-family: -apple-system, "PingFang SC", sans-serif;
+  cursor: pointer; z-index: 9999;
+  user-select: none;
+  transition: color 0.2s;
+  background: transparent; border: none; padding: 4px 6px;
+  outline: none;
+}
+#hide-ui-label:hover { color: #6366f1; }
+body.hide-all-ui #hide-ui-label { display: none; }
 #hide-ui-toast {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: rgba(18,18,26,0.92); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
@@ -778,11 +790,13 @@ body.hide-all-ui #hide-ui-hotzone { display: block; }
 #hide-ui-toast.show { opacity: 1; }
 </style>
 <div id="hide-ui-hotzone"></div>
+<button id="hide-ui-label">隐藏控制台</button>
 <div id="hide-ui-toast"></div>
 <script>
 (function(){
   var STORE = 'laohei-hide-ui';
   var hk = document.getElementById('hide-ui-hotzone');
+  var label = document.getElementById('hide-ui-label');
   var toast = document.getElementById('hide-ui-toast');
   var toastTimer = null;
   function applyHidden(hidden){
@@ -825,8 +839,13 @@ body.hide-all-ui #hide-ui-hotzone { display: block; }
       if(document.body.classList.contains('hide-all-ui')) show();
     });
   }
+  if(label){
+    label.addEventListener('click', function(){
+      if(!document.body.classList.contains('hide-all-ui')) hide();
+    });
+  }
 })();
 </script>
-<!-- /hide-ui-v1 -->
+<!-- /hide-ui-v2 -->
 </body>
 </html>
