@@ -514,6 +514,7 @@
 
   <div class="divider"></div>
 
+  <button class="save-btn" id="resetBtn" style="background: linear-gradient(135deg, #ef4444, #f97316); margin-bottom: 0;">重置参数</button>
   <button class="save-btn" id="saveBtn">保存图片</button>
 </div>
 
@@ -563,6 +564,70 @@ const params = {
   textSize: 300,
   textColor: '#ffffff',
 };
+
+// ── localStorage 持久化 ──
+const LS_PREFIX = 'glowgrid_';
+function persistCfg(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, String(value)); } catch(e) {}
+}
+function restoreCfg() {
+  const keys = ['gridSize','glowStrength','lineAlpha','glowAlpha','lineWidth','speed','dotRadius','direction','bgColor','lineColor','writeText','text','fontName','textSize','textColor'];
+  for (const k of keys) {
+    const v = localStorage.getItem(LS_PREFIX + k);
+    if (v === null) continue;
+    if (k === 'writeText') params[k] = v === 'true';
+    else if (k === 'gridSize' || k === 'glowStrength' || k === 'textSize') params[k] = parseInt(v);
+    else if (k === 'lineAlpha' || k === 'glowAlpha' || k === 'lineWidth' || k === 'speed' || k === 'dotRadius') params[k] = parseFloat(v);
+    else params[k] = v;
+  }
+  // 恢复自定义字体
+  const fontDataUrl = localStorage.getItem(LS_PREFIX + 'fontDataUrl');
+  if (fontDataUrl) {
+    try {
+      const base64 = fontDataUrl.split(',')[1];
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      const ff = new FontFace('customFont', bytes.buffer);
+      ff.load().then(() => {
+        document.fonts.add(ff);
+      }).catch(err => console.error('字体恢复失败', err));
+    } catch(e) { console.error('字体恢复失败', e); }
+  }
+  syncUIFromCfg();
+}
+function syncUIFromCfg() {
+  // 滑块 + 数值标签
+  const sliderConfigs = [
+    { id: 'gridSize',      fmt: v => v },
+    { id: 'glowStrength',  fmt: v => v },
+    { id: 'lineAlpha',     fmt: v => v.toFixed(2) },
+    { id: 'glowAlpha',     fmt: v => v.toFixed(2) },
+    { id: 'lineWidth',     fmt: v => v.toFixed(1) },
+    { id: 'speed',         fmt: v => v.toFixed(1) + 'x' },
+    { id: 'dotRadius',     fmt: v => v.toFixed(1) },
+    { id: 'textSize',      fmt: v => v },
+  ];
+  sliderConfigs.forEach(function(cfg) {
+    var slider = document.getElementById(cfg.id);
+    var valEl = document.getElementById('val-' + cfg.id);
+    if (slider) slider.value = params[cfg.id];
+    if (valEl) valEl.textContent = cfg.fmt(params[cfg.id]);
+  });
+  // 颜色选择器
+  document.getElementById('bgColor').value = params.bgColor;
+  document.getElementById('lineColor').value = params.lineColor;
+  document.getElementById('textColor').value = params.textColor;
+  // 方向按钮
+  document.querySelectorAll('.direction-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.dir === params.direction);
+  });
+  // 文字控件
+  document.getElementById('writeText').checked = params.writeText;
+  document.getElementById('textInput').value = params.text;
+  document.getElementById('fontInput').value = params.fontName;
+}
 
 // ── Canvas 全屏 ──
 const canvas = document.getElementById('canvas');
@@ -665,9 +730,11 @@ function animate() {
 // ── 颜色选择器 ──
 document.getElementById('bgColor').addEventListener('input', (e) => {
   params.bgColor = e.target.value;
+  persistCfg('bgColor', params.bgColor);
 });
 document.getElementById('lineColor').addEventListener('input', (e) => {
   params.lineColor = e.target.value;
+  persistCfg('lineColor', params.lineColor);
 });
 
 // ── 面板收起/展开 ──
@@ -693,6 +760,7 @@ sliderIds.forEach(id => {
     else if (id === 'gridSize' || id === 'glowStrength') valEl.textContent = v;
     else if (id === 'lineWidth' || id === 'dotRadius') valEl.textContent = v.toFixed(1);
     else valEl.textContent = v.toFixed(2);
+    persistCfg(id, v);
   });
 });
 
@@ -701,18 +769,20 @@ document.querySelectorAll('.direction-btn').forEach(btn => {
     document.querySelectorAll('.direction-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     params.direction = btn.dataset.dir;
+    persistCfg('direction', params.direction);
   });
 });
 
 // ── 文字控件 ──
-document.getElementById('writeText').addEventListener('change', (e) => { params.writeText = e.target.checked; });
-document.getElementById('textInput').addEventListener('input', (e) => { params.text = e.target.value; });
-document.getElementById('fontInput').addEventListener('input', (e) => { params.fontName = e.target.value; });
+document.getElementById('writeText').addEventListener('change', (e) => { params.writeText = e.target.checked; persistCfg('writeText', params.writeText); });
+document.getElementById('textInput').addEventListener('input', (e) => { params.text = e.target.value; persistCfg('text', params.text); });
+document.getElementById('fontInput').addEventListener('input', (e) => { params.fontName = e.target.value; persistCfg('fontName', params.fontName); });
 document.getElementById('textSize').addEventListener('input', (e) => {
   params.textSize = parseInt(e.target.value);
   document.getElementById('val-textSize').textContent = params.textSize;
+  persistCfg('textSize', params.textSize);
 });
-document.getElementById('textColor').addEventListener('input', (e) => { params.textColor = e.target.value; });
+document.getElementById('textColor').addEventListener('input', (e) => { params.textColor = e.target.value; persistCfg('textColor', params.textColor); });
 document.getElementById('fontFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -723,6 +793,19 @@ document.getElementById('fontFile').addEventListener('change', (e) => {
       document.fonts.add(ff);
       params.fontName = 'customFont';
       document.getElementById('fontInput').value = 'customFont';
+      persistCfg('fontName', 'customFont');
+      // 持久化字体文件为 base64 dataURL
+      try {
+        const bytes = new Uint8Array(ev.target.result);
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        const b64 = btoa(binary);
+        const mime = file.type || 'font/ttf';
+        persistCfg('fontDataUrl', 'data:' + mime + ';base64,' + b64);
+      } catch(err) { console.error('字体持久化失败', err); }
     }).catch(err => console.error('字体加载失败', err));
   };
   reader.readAsArrayBuffer(file);
@@ -748,6 +831,8 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
       else if (id === 'lineWidth' || id === 'dotRadius') valEl.textContent = params[id].toFixed(1);
       else valEl.textContent = params[id].toFixed(2);
     });
+    // 持久化所有预设参数
+    sliderIds.forEach(id => persistCfg(id, params[id]));
   });
 });
 
@@ -817,7 +902,23 @@ infoModal.addEventListener('click', (e) => {
   if (e.target === infoModal) infoModal.classList.remove('show');
 });
 
+// ── 重置参数 ──
+document.getElementById('resetBtn').addEventListener('click', () => {
+  const defaults = {
+    gridSize: 240, glowStrength: 8, lineAlpha: 0.45, glowAlpha: 0.20,
+    lineWidth: 1, speed: 1, dotRadius: 2, direction: 'down',
+    bgColor: '#000000', lineColor: '#ffffff', writeText: true,
+    text: 'HEIP', fontName: 'sans-serif', textSize: 300, textColor: '#ffffff',
+  };
+  Object.assign(params, defaults);
+  // 清除 localStorage 中的参数
+  const keys = ['gridSize','glowStrength','lineAlpha','glowAlpha','lineWidth','speed','dotRadius','direction','bgColor','lineColor','writeText','text','fontName','textSize','textColor','fontDataUrl'];
+  keys.forEach(k => { try { localStorage.removeItem(LS_PREFIX + k); } catch(e) {} });
+  syncUIFromCfg();
+});
+
 // ── 启动 ──
+restoreCfg();
 animate();
 </script>
 
